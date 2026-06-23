@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "carwash-init",
-    "slug": "carwash-init",
+    "name": "CarWash",
+    "slug": "carwash",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -16,10 +16,33 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "config": {
+        "googleMaps": {
+          "apiKey": "PASTE_YOUR_GOOGLE_MAPS_API_KEY_HERE"
+        }
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.btechdigital.carwash"
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow CarWash to access your photos for vehicle images.",
+          "cameraPermission": "Allow CarWash to take photos of your vehicle."
+        }
+      ],
+      "@react-native-community/datetimepicker"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "ea26b61f-9c2c-48bb-aca0-69f05f9f6960"
+      }
+    },
+    "owner": "ornachshon"
   }
 }
