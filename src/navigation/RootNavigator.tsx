@@ -14,6 +14,10 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 export function RootNavigator() {
   const { session, profile, loading } = useAuth();
 
+  const navigationKey = session?.user?.id
+    ? `${session.user.id}-${profile?.role ?? 'pending'}`
+    : 'signed-out';
+
   if (loading) {
     return (
       <View style={styles.loading}>
@@ -23,16 +27,18 @@ export function RootNavigator() {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer key={navigationKey}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {!session ? (
           <Stack.Screen name="Auth" component={AuthNavigator} />
         ) : !hasRole(profile) ? (
           <Stack.Screen name="RoleSelect" component={RoleSelectScreen} />
+        ) : profile.role === 'washer' ? (
+          <Stack.Screen name="Washer" component={WasherNavigator} />
         ) : profile.role === 'owner' ? (
           <Stack.Screen name="Owner" component={OwnerNavigator} />
         ) : (
-          <Stack.Screen name="Washer" component={WasherNavigator} />
+          <Stack.Screen name="RoleSelect" component={RoleSelectScreen} />
         )}
       </Stack.Navigator>
     </NavigationContainer>

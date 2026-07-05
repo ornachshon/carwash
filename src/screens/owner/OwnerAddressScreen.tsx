@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -8,27 +8,51 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { AuthTextInput } from '../../components/AuthTextInput';
+import {
+  LocationAutocomplete,
+  type LocationAutocompleteRef,
+} from '../../components/LocationAutocomplete';
 import { ScreenLayout } from '../../components/ScreenLayout';
+import { getGoogleMapsApiKey } from '../../config/googleMaps';
 import { useAuth } from '../../hooks/useAuth';
 import { updateOwnerAddress } from '../../services/vehicles';
 import { colors, spacing, typography } from '../../theme';
 import { getErrorMessage, mapAuthError } from '../../utils/authErrors';
+import type { LatLng } from '../../utils/geo';
 import type { OwnerStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<OwnerStackParamList, 'OwnerAddress'>;
 
 export function OwnerAddressScreen({ navigation }: Props) {
   const { authUser, refreshProfile } = useAuth();
+  const apiKey = useMemo(() => getGoogleMapsApiKey(), []);
+  const locationAutocompleteRef = useRef<LocationAutocompleteRef>(null);
+
   const [addressText, setAddressText] = useState('');
+  const [coordinates, setCoordinates] = useState<LatLng | null>(null);
+  const [placesWarning, setPlacesWarning] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const handlePlaceSelected = (address: string, coords: LatLng) => {
+    setAddressText(address);
+    setCoordinates(coords);
+    setPlacesWarning(null);
+    setError(null);
+    locationAutocompleteRef.current?.setAddressText(address);
+  };
 
   const handleSave = async () => {
     setError(null);
 
-    if (!addressText.trim()) {
+    const trimmed = addressText.trim();
+    if (!trimmed) {
       setError('Please enter your default address.');
+      return;
+    }
+
+    if (apiKey && !coordinates) {
+      setError('Select an address from the suggestions so we can save your location.');
       return;
     }
 
@@ -39,7 +63,7 @@ export function OwnerAddressScreen({ navigation }: Props) {
 
     setSubmitting(true);
     try {
-      await updateOwnerAddress(authUser.id, addressText.trim());
+      await updateOwnerAddress(authUser.id, trimmed, coordinates ?? undefined);
       await refreshProfile();
       navigation.replace('AddVehicle');
     } catch (err) {
@@ -56,19 +80,27 @@ export function OwnerAddressScreen({ navigation }: Props) {
       title="Your address"
       subtitle="Used as the default location for wash requests. You can change this later."
       scroll
+      keyboardShouldPersistTaps="handled"
     >
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <AuthTextInput
-          label="Default address"
-          value={addressText}
-          onChangeText={setAddressText}
-          placeholder="e.g. 123 Main St, Tel Aviv"
-          multiline
-          numberOfLines={3}
-          style={styles.addressInput}
-          autoCapitalize="sentences"
+        <LocationAutocomplete
+          ref={locationAutocompleteRef}
+          apiKey={apiKey}
+          address={addressText}
+          onAddressChange={(text) => {
+            setAddressText(text);
+            if (!text.trim()) {
+              setCoordinates(null);
+            }
+          }}
+          onPlaceSelected={handlePlaceSelected}
+          onAutocompleteError={(message) => setPlacesWarning(message)}
+          onClearError={() => setPlacesWarning(null)}
         />
+
+        {placesWarning ? <Text style={styles.warningText}>{placesWarning}</Text> : null}
         {error ? <Text style={styles.formError}>{error}</Text> : null}
+
         <TouchableOpacity
           style={[styles.button, submitting && styles.buttonDisabled]}
           onPress={handleSave}
@@ -86,9 +118,10 @@ export function OwnerAddressScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  addressInput: {
-    minHeight: 88,
-    textAlignVertical: 'top',
+  warningText: {
+    ...typography.bodySmall,
+    color: colors.warning,
+    marginBottom: spacing.md,
   },
   formError: {
     ...typography.bodySmall,

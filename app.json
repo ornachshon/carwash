@@ -36,6 +36,12 @@
           "cameraPermission": "Allow CarWash to take photos of your vehicle."
         }
       ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow CarWash to use your location to find nearby wash jobs."
+        }
+      ],
       "@react-native-community/datetimepicker"
     ],
     "extra": {

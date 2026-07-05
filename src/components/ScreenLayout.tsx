@@ -1,4 +1,5 @@
-import { SafeAreaView, ScrollView, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, typography } from '../theme';
 
 interface ScreenLayoutProps {
@@ -7,9 +8,17 @@ interface ScreenLayoutProps {
   children?: React.ReactNode;
   scroll?: boolean;
   style?: ViewStyle;
+  keyboardShouldPersistTaps?: 'always' | 'never' | 'handled';
 }
 
-export function ScreenLayout({ title, subtitle, children, scroll = false, style }: ScreenLayoutProps) {
+export function ScreenLayout({
+  title,
+  subtitle,
+  children,
+  scroll = false,
+  style,
+  keyboardShouldPersistTaps,
+}: ScreenLayoutProps) {
   const content = (
     <View style={[styles.content, style]}>
       <Text style={styles.title}>{title}</Text>
@@ -21,7 +30,12 @@ export function ScreenLayout({ title, subtitle, children, scroll = false, style 
   return (
     <SafeAreaView style={styles.safe}>
       {scroll ? (
-        <ScrollView contentContainerStyle={styles.scrollContent}>{content}</ScrollView>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps={keyboardShouldPersistTaps}
+        >
+          {content}
+        </ScrollView>
       ) : (
         content
       )}

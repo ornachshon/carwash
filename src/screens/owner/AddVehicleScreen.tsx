@@ -36,36 +36,60 @@ export function AddVehicleScreen({ navigation }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const formatPickerError = (err: unknown): string => {
+    if (err instanceof Error) {
+      const parts = [err.name, err.message].filter(Boolean);
+      if (err.stack) {
+        parts.push(err.stack);
+      }
+      return parts.join('\n');
+    }
+    if (typeof err === 'object' && err !== null) {
+      try {
+        return JSON.stringify(err, null, 2);
+      } catch {
+        return String(err);
+      }
+    }
+    return String(err);
+  };
+
   const pickImage = async (source: 'library' | 'camera') => {
     setError(null);
 
-    if (source === 'camera') {
-      const permission = await ImagePicker.requestCameraPermissionsAsync();
-      if (!permission.granted) {
-        setError('Camera permission is required to take a photo.');
+    try {
+      if (source === 'camera') {
+        const permission = await ImagePicker.requestCameraPermissionsAsync();
+        if (!permission.granted) {
+          setError('Camera permission is required to take a photo.');
+          return;
+        }
+        const result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ['images'],
+          quality: 0.8,
+        });
+        if (!result.canceled && result.assets[0]) {
+          setPhotoUri(result.assets[0].uri);
+        }
         return;
       }
-      const result = await ImagePicker.launchCameraAsync({
+
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        setError('Photo library permission is required to pick an image.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         quality: 0.8,
       });
       if (!result.canceled && result.assets[0]) {
         setPhotoUri(result.assets[0].uri);
       }
-      return;
-    }
-
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      setError('Photo library permission is required to pick an image.');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.8,
-    });
-    if (!result.canceled && result.assets[0]) {
-      setPhotoUri(result.assets[0].uri);
+    } catch (err) {
+      const message = formatPickerError(err);
+      console.error('[AddVehicleScreen] image picker failed:', message, err);
+      setError(`Image picker error:\n${message}`);
     }
   };
 
@@ -105,8 +129,8 @@ export function AddVehicleScreen({ navigation }: Props) {
 
   const showPhotoOptions = () => {
     Alert.alert('Vehicle photo', 'Choose a source', [
-      { text: 'Take photo', onPress: () => pickImage('camera') },
-      { text: 'Choose from gallery', onPress: () => pickImage('library') },
+      { text: 'Take photo', onPress: () => void pickImage('camera') },
+      { text: 'Choose from gallery', onPress: () => void pickImage('library') },
       { text: 'Cancel', style: 'cancel' },
     ]);
   };
@@ -196,6 +220,7 @@ const styles = StyleSheet.create({
     ...typography.bodySmall,
     color: colors.error,
     marginBottom: spacing.md,
+    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
   },
   button: {
     backgroundColor: colors.primary,

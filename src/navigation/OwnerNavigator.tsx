@@ -12,7 +12,12 @@ const Stack = createNativeStackNavigator<OwnerStackParamList>();
 
 export function OwnerNavigator() {
   const { profile } = useAuth();
-  const needsAddress = !profile?.address_text;
+
+  if (profile?.role !== 'owner') {
+    return null;
+  }
+
+  const needsAddress = !profile.address_text?.trim();
 
   return (
     <Stack.Navigator

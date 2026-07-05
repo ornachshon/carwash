@@ -12,6 +12,7 @@ const Stack = createNativeStackNavigator<WasherStackParamList>();
 export function WasherNavigator() {
   return (
     <Stack.Navigator
+      initialRouteName="AvailabilityToggle"
       screenOptions={{
         headerStyle: { backgroundColor: colors.surface },
         headerTintColor: colors.primary,

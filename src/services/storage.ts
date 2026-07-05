@@ -41,3 +41,27 @@ export async function uploadVehiclePhoto(
   const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
   return data.publicUrl;
 }
+
+const COMPLETION_BUCKET = 'completion-photos';
+
+export async function uploadCompletionPhoto(jobId: string, localUri: string): Promise<string> {
+  const ext = extensionFromUri(localUri);
+  const path = `${jobId}/completion.${ext === 'jpg' ? 'jpg' : ext}`;
+
+  const response = await fetch(localUri);
+  const arrayBuffer = await response.arrayBuffer();
+
+  const { error: uploadError } = await supabase.storage
+    .from(COMPLETION_BUCKET)
+    .upload(path, arrayBuffer, {
+      contentType: contentTypeFromExt(ext),
+      upsert: true,
+    });
+
+  if (uploadError) {
+    throw new Error(getErrorMessage(uploadError));
+  }
+
+  const { data } = supabase.storage.from(COMPLETION_BUCKET).getPublicUrl(path);
+  return data.publicUrl;
+}

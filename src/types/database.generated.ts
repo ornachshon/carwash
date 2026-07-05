@@ -188,6 +188,7 @@ export type Database = {
           accepted_at: string | null
           address_text: string
           completed_at: string | null
+          completion_photo_url: string | null
           id: string
           location: unknown
           owner_id: string
@@ -202,6 +203,7 @@ export type Database = {
           accepted_at?: string | null
           address_text: string
           completed_at?: string | null
+          completion_photo_url?: string | null
           id?: string
           location: unknown
           owner_id: string
@@ -216,6 +218,7 @@ export type Database = {
           accepted_at?: string | null
           address_text?: string
           completed_at?: string | null
+          completion_photo_url?: string | null
           id?: string
           location?: unknown
           owner_id?: string
@@ -471,6 +474,7 @@ export type Database = {
         }
         Returns: string
       }
+      current_user_is_washer: { Args: never; Returns: boolean }
       disablelongtransactions: { Args: never; Returns: string }
       dropgeometrycolumn:
         | {
@@ -1226,6 +1230,14 @@ export type Database = {
         Returns: unknown
       }
       unlockrows: { Args: { "": string }; Returns: number }
+      update_owner_address: {
+        Args: { p_address_text: string; p_lat: number; p_lng: number }
+        Returns: undefined
+      }
+      update_washer_availability: {
+        Args: { p_is_available: boolean; p_lat?: number; p_lng?: number }
+        Returns: undefined
+      }
       updategeometrysrid: {
         Args: {
           catalogn_name: string

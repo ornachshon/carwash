@@ -53,7 +53,24 @@ export async function fetchOwnerVehicles(ownerId: string): Promise<Vehicle[]> {
   return data ?? [];
 }
 
-export async function updateOwnerAddress(ownerId: string, addressText: string) {
+export async function updateOwnerAddress(
+  ownerId: string,
+  addressText: string,
+  location?: { latitude: number; longitude: number },
+) {
+  if (location) {
+    const { error } = await supabase.rpc('update_owner_address', {
+      p_address_text: addressText,
+      p_lng: location.longitude,
+      p_lat: location.latitude,
+    });
+
+    if (error) {
+      throw new Error(getErrorMessage(error));
+    }
+    return;
+  }
+
   const { error } = await supabase
     .from('users')
     .update({ address_text: addressText })
