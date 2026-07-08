@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -79,10 +80,13 @@ export function OwnerAddressScreen({ navigation }: Props) {
     <ScreenLayout
       title="Your address"
       subtitle="Used as the default location for wash requests. You can change this later."
-      scroll
-      keyboardShouldPersistTaps="handled"
     >
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.keyboardAvoid}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
+      >
+        {/* GooglePlacesAutocomplete FlatList must NOT be inside ScrollView */}
         <LocationAutocomplete
           ref={locationAutocompleteRef}
           apiKey={apiKey}
@@ -98,26 +102,43 @@ export function OwnerAddressScreen({ navigation }: Props) {
           onClearError={() => setPlacesWarning(null)}
         />
 
-        {placesWarning ? <Text style={styles.warningText}>{placesWarning}</Text> : null}
-        {error ? <Text style={styles.formError}>{error}</Text> : null}
-
-        <TouchableOpacity
-          style={[styles.button, submitting && styles.buttonDisabled]}
-          onPress={handleSave}
-          disabled={submitting}
+        <ScrollView
+          style={styles.scrollBody}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          {submitting ? (
-            <ActivityIndicator color={colors.surface} />
-          ) : (
-            <Text style={styles.buttonText}>Continue</Text>
-          )}
-        </TouchableOpacity>
+          {placesWarning ? <Text style={styles.warningText}>{placesWarning}</Text> : null}
+          {error ? <Text style={styles.formError}>{error}</Text> : null}
+
+          <TouchableOpacity
+            style={[styles.button, submitting && styles.buttonDisabled]}
+            onPress={handleSave}
+            disabled={submitting}
+          >
+            {submitting ? (
+              <ActivityIndicator color={colors.surface} />
+            ) : (
+              <Text style={styles.buttonText}>Continue</Text>
+            )}
+          </TouchableOpacity>
+        </ScrollView>
       </KeyboardAvoidingView>
     </ScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
+  keyboardAvoid: {
+    flex: 1,
+  },
+  scrollBody: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xl,
+  },
   warningText: {
     ...typography.bodySmall,
     color: colors.warning,

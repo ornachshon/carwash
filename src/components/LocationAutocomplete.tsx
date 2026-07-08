@@ -25,6 +25,7 @@ export const LocationAutocomplete = forwardRef<LocationAutocompleteRef, Location
     ref,
   ) {
     const placesRef = useRef<GooglePlacesAutocompleteRef>(null);
+    const lastLoggedFirstResult = useRef<string | null>(null);
 
     useImperativeHandle(ref, () => ({
       setAddressText: (text: string) => {
@@ -73,8 +74,15 @@ export const LocationAutocomplete = forwardRef<LocationAutocompleteRef, Location
           }}
           onPress={(data, details = null) => {
             onClearError();
+            console.log('[LocationAutocomplete] Place selected:', {
+              description: data.description,
+              placeId: data.place_id,
+              hasDetails: details != null,
+              location: details?.geometry?.location ?? null,
+            });
             const location = details?.geometry?.location;
             if (!location) {
+              console.warn('[LocationAutocomplete] Selected place missing geometry:', data);
               onAutocompleteError(
                 'Selected place has no location. Try another result or drop a pin on the map.',
               );
@@ -87,9 +95,30 @@ export const LocationAutocomplete = forwardRef<LocationAutocompleteRef, Location
               longitude: location.lng,
             });
           }}
-          onFail={() => {
+          onFail={(error) => {
+            console.error('[LocationAutocomplete] Places autocomplete failed:', error);
             onAutocompleteError(
               'Address search unavailable. Check your connection or drop a pin on the map.',
+            );
+          }}
+          onNotFound={() => {
+            console.log('[LocationAutocomplete] Places autocomplete returned no results');
+          }}
+          onTimeout={() => {
+            console.warn('[LocationAutocomplete] Places autocomplete request timed out');
+          }}
+          renderRow={(rowData, index) => {
+            if (index === 0 && rowData.description !== lastLoggedFirstResult.current) {
+              lastLoggedFirstResult.current = rowData.description ?? null;
+              console.log('[LocationAutocomplete] Autocomplete predictions received:', {
+                firstResult: rowData.description,
+              });
+            }
+
+            return (
+              <View style={styles.row}>
+                <Text style={styles.description}>{rowData.description}</Text>
+              </View>
             );
           }}
           textInputProps={{

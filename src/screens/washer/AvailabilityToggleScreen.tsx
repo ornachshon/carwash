@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import * as Location from 'expo-location';
+
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { SignOutButton } from '../../components/SignOutButton';
 import { ScreenLayout } from '../../components/ScreenLayout';
@@ -16,6 +16,7 @@ import { fetchWasherProfile, setWasherAvailability } from '../../services/washer
 import { colors, spacing, typography } from '../../theme';
 import type { WasherProfile } from '../../types/database';
 import { getErrorMessage } from '../../utils/authErrors';
+import { getDeviceLocation } from '../../utils/location';
 import type { WasherStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<WasherStackParamList, 'AvailabilityToggle'>;
@@ -59,19 +60,11 @@ export function AvailabilityToggleScreen({ navigation }: Props) {
 
     try {
       if (nextAvailable) {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') {
-          setError('Location permission is required to go online and receive nearby jobs.');
-          return;
-        }
-
-        const position = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
+        const { latitude, longitude } = await getDeviceLocation();
 
         await setWasherAvailability(true, {
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
+          latitude,
+          longitude,
         });
       } else {
         await setWasherAvailability(false);
