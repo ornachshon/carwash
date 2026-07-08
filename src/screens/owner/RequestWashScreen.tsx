@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -9,38 +9,23 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import MapView, { Marker, type MapPressEvent, type Region } from 'react-native-maps';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import {
-  LocationAutocomplete,
-  type LocationAutocompleteRef,
-} from '../../components/LocationAutocomplete';
+import { AddressInput } from '../../components/AddressInput';
 import { ScreenLayout } from '../../components/ScreenLayout';
 import { SignOutButton } from '../../components/SignOutButton';
 import { VehiclePicker } from '../../components/VehiclePicker';
-import { getGoogleMapsApiKey } from '../../config/googleMaps';
 import { useAuth } from '../../hooks/useAuth';
-import { GeocodingError, reverseGeocode } from '../../services/geocoding';
 import { fetchOwnerVehicles } from '../../services/vehicles';
 import { createWashJob } from '../../services/washJobs';
 import { colors, spacing, typography } from '../../theme';
 import type { Vehicle } from '../../types/database';
 import { getErrorMessage } from '../../utils/authErrors';
-import { parseGeographyPoint, TEL_AVIV_CENTER, type LatLng } from '../../utils/geo';
+import { parseGeographyPoint, type LatLng } from '../../utils/geo';
 import type { OwnerStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<OwnerStackParamList, 'RequestWash'>;
 type TimeMode = 'asap' | 'later';
-
-function regionFromCoords(coords: LatLng, delta = 0.02): Region {
-  return {
-    latitude: coords.latitude,
-    longitude: coords.longitude,
-    latitudeDelta: delta,
-    longitudeDelta: delta,
-  };
-}
 
 function formatScheduledAt(date: Date): string {
   return date.toLocaleString(undefined, {
@@ -54,56 +39,26 @@ function formatScheduledAt(date: Date): string {
 
 export function RequestWashScreen({ navigation }: Props) {
   const { authUser, profile } = useAuth();
-  const apiKey = useMemo(() => getGoogleMapsApiKey(), []);
 
   const savedAddress = profile?.address_text?.trim() ?? '';
-  const savedLocation = useMemo(
-    () => parseGeographyPoint(profile?.default_location),
-    [profile?.default_location],
-  );
-  const needsPinDrop = savedLocation === null;
-
-  const mapRef = useRef<MapView>(null);
-  const locationAutocompleteRef = useRef<LocationAutocompleteRef>(null);
-  const skipAddressClearRef = useRef(false);
+  const savedLocation = parseGeographyPoint(profile?.default_location);
 
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
   const [loadingVehicles, setLoadingVehicles] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [placesWarning, setPlacesWarning] = useState<string | null>(null);
 
   const [addressLabel, setAddressLabel] = useState(savedAddress);
-  const [locationCustom, setLocationCustom] = useState(false);
   const [coordinates, setCoordinates] = useState<LatLng | null>(savedLocation);
   const [timeMode, setTimeMode] = useState<TimeMode>('asap');
   const [scheduledAt, setScheduledAt] = useState(() => new Date(Date.now() + 60 * 60 * 1000));
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
 
-  const mapRegion = useMemo(
-    () => regionFromCoords(coordinates ?? TEL_AVIV_CENTER),
-    [coordinates],
-  );
-
-  const setAddressSynced = useCallback((text: string) => {
-    skipAddressClearRef.current = true;
-    setAddressLabel(text);
-    locationAutocompleteRef.current?.setAddressText(text);
-    skipAddressClearRef.current = false;
-  }, []);
-
   useEffect(() => {
     setAddressLabel(savedAddress);
     setCoordinates(savedLocation);
-    setLocationCustom(false);
-    if (savedAddress) {
-      locationAutocompleteRef.current?.setAddressText(savedAddress);
-    }
-    if (savedLocation) {
-      mapRef.current?.animateToRegion(regionFromCoords(savedLocation, 0.008), 0);
-    }
   }, [savedAddress, savedLocation]);
 
   useEffect(() => {
@@ -145,86 +100,14 @@ export function RequestWashScreen({ navigation }: Props) {
     };
   }, [authUser]);
 
-  const handleAddressChange = useCallback((text: string) => {
-    setAddressLabel(text);
-    if (skipAddressClearRef.current) {
-      return;
-    }
-    if (!text.trim()) {
-      setCoordinates(null);
-      setLocationCustom(false);
-      setPlacesWarning(null);
-      return;
-    }
-    setCoordinates(null);
-  }, []);
-
-  const handlePlaceSelected = useCallback((address: string, coords: LatLng) => {
-    setAddressSynced(address);
-    setCoordinates(coords);
-    setLocationCustom(true);
-    setPlacesWarning(null);
-    setError(null);
-    mapRef.current?.animateToRegion(regionFromCoords(coords, 0.008), 400);
-  }, [setAddressSynced]);
-
-  const applyMapLocationWithGeocode = useCallback(
-    async (coords: LatLng) => {
-      setCoordinates(coords);
-      setLocationCustom(true);
-      setError(null);
-      mapRef.current?.animateToRegion(regionFromCoords(coords, 0.008), 400);
-
-      if (!apiKey) {
-        return;
-      }
-
-      try {
-        const address = await reverseGeocode(coords.latitude, coords.longitude, apiKey);
-        setAddressSynced(address);
-        setPlacesWarning(null);
-      } catch (err) {
-        if (err instanceof GeocodingError && err.isNetwork) {
-          setPlacesWarning(
-            'Offline — pin set but address lookup failed. Type an address or retry when online.',
-          );
-        } else {
-          setPlacesWarning('Pin set but address lookup failed. Type an address manually.');
-        }
-      }
-    },
-    [apiKey, setAddressSynced],
-  );
-
-  const handleMapPress = useCallback(
-    (event: MapPressEvent) => {
-      void applyMapLocationWithGeocode(event.nativeEvent.coordinate);
-    },
-    [applyMapLocationWithGeocode],
-  );
-
-  const handleMarkerDragEnd = useCallback(
-    (event: { nativeEvent: { coordinate: LatLng } }) => {
-      void applyMapLocationWithGeocode(event.nativeEvent.coordinate);
-    },
-    [applyMapLocationWithGeocode],
-  );
-
   const handleResetToSavedAddress = useCallback(() => {
-    if (!savedAddress) {
+    if (!savedAddress || !savedLocation) {
       return;
     }
-    setAddressSynced(savedAddress);
-    setLocationCustom(false);
-    if (savedLocation) {
-      setCoordinates(savedLocation);
-      mapRef.current?.animateToRegion(regionFromCoords(savedLocation, 0.008), 400);
-    } else {
-      setCoordinates(null);
-    }
-    setPlacesWarning(null);
+    setAddressLabel(savedAddress);
+    setCoordinates(savedLocation);
     setError(null);
-  }, [savedAddress, savedLocation, setAddressSynced]);
+  }, [savedAddress, savedLocation]);
 
   const handleDateChange = (_event: DateTimePickerEvent, date?: Date) => {
     if (Platform.OS === 'android') {
@@ -270,12 +153,12 @@ export function RequestWashScreen({ navigation }: Props) {
 
     const addressText = addressLabel.trim();
     if (!addressText) {
-      setError('Please enter or select a wash location address.');
+      setError('Please enter a wash location address.');
       return;
     }
 
     if (!coordinates) {
-      setError('Select an address from the list or drop a pin on the map.');
+      setError('Tap "Use my current location" to set where the washer should come.');
       return;
     }
 
@@ -331,8 +214,11 @@ export function RequestWashScreen({ navigation }: Props) {
             </TouchableOpacity>
           </View>
         ) : (
-          <>
-            {/* Header content — outside ScrollView */}
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
             <VehiclePicker
               vehicles={vehicles}
               selectedId={selectedVehicleId}
@@ -341,130 +227,97 @@ export function RequestWashScreen({ navigation }: Props) {
 
             <Text style={styles.sectionLabel}>Location</Text>
 
-            {/* GooglePlacesAutocomplete FlatList must NOT be inside ScrollView */}
-            <LocationAutocomplete
-              ref={locationAutocompleteRef}
-              apiKey={apiKey}
+            <AddressInput
               address={addressLabel}
-              onAddressChange={handleAddressChange}
-              onPlaceSelected={handlePlaceSelected}
-              onAutocompleteError={(message) => setPlacesWarning(message)}
-              onClearError={() => setPlacesWarning(null)}
+              coordinates={coordinates}
+              onAddressChange={setAddressLabel}
+              onCoordinatesChange={setCoordinates}
+              placeholder="Where should the washer come?"
             />
 
-            {placesWarning ? <Text style={styles.warningText}>{placesWarning}</Text> : null}
-
-            {needsPinDrop ? (
-              <Text style={styles.helperText}>
-                Search for your address or tap the map to drop a pin.
-              </Text>
-            ) : locationCustom ? (
+            {savedAddress && savedLocation ? (
               <TouchableOpacity onPress={handleResetToSavedAddress}>
-                <Text style={styles.linkText}>Use saved address instead</Text>
+                <Text style={styles.linkText}>Use saved address</Text>
               </TouchableOpacity>
-            ) : (
-              <Text style={styles.helperText}>Search or tap the map to adjust the pin.</Text>
-            )}
+            ) : null}
 
-            {/* Scrollable body — map, when, submit only */}
-            <ScrollView
-              style={styles.scrollBody}
-              contentContainerStyle={styles.scrollContent}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator
-            >
-              <View style={styles.mapWrapper}>
-                <MapView
-                  ref={mapRef}
-                  style={styles.map}
-                  initialRegion={mapRegion}
-                  region={coordinates ? mapRegion : undefined}
-                  onPress={handleMapPress}
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>When</Text>
+              <View style={styles.timeRow}>
+                <TouchableOpacity
+                  style={[styles.timeChip, timeMode === 'asap' && styles.timeChipSelected]}
+                  onPress={() => setTimeMode('asap')}
                 >
-                  {coordinates ? (
-                    <Marker coordinate={coordinates} draggable onDragEnd={handleMarkerDragEnd} />
-                  ) : null}
-                </MapView>
+                  <Text
+                    style={[styles.timeChipText, timeMode === 'asap' && styles.timeChipTextSelected]}
+                  >
+                    ASAP
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.timeChip, timeMode === 'later' && styles.timeChipSelected]}
+                  onPress={() => setTimeMode('later')}
+                >
+                  <Text
+                    style={[styles.timeChipText, timeMode === 'later' && styles.timeChipTextSelected]}
+                  >
+                    Schedule for later
+                  </Text>
+                </TouchableOpacity>
               </View>
 
-              <View style={styles.section}>
-                <Text style={styles.sectionLabel}>When</Text>
-                <View style={styles.timeRow}>
-                  <TouchableOpacity
-                    style={[styles.timeChip, timeMode === 'asap' && styles.timeChipSelected]}
-                    onPress={() => setTimeMode('asap')}
-                  >
-                    <Text
-                      style={[styles.timeChipText, timeMode === 'asap' && styles.timeChipTextSelected]}
+              {timeMode === 'later' ? (
+                <View style={styles.scheduleBlock}>
+                  <Text style={styles.scheduledLabel}>{formatScheduledAt(scheduledAt)}</Text>
+                  <View style={styles.scheduleButtons}>
+                    <TouchableOpacity
+                      style={styles.secondaryButton}
+                      onPress={() => setShowDatePicker(true)}
                     >
-                      ASAP
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.timeChip, timeMode === 'later' && styles.timeChipSelected]}
-                    onPress={() => setTimeMode('later')}
-                  >
-                    <Text
-                      style={[styles.timeChipText, timeMode === 'later' && styles.timeChipTextSelected]}
+                      <Text style={styles.secondaryButtonText}>Change date</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.secondaryButton}
+                      onPress={() => setShowTimePicker(true)}
                     >
-                      Schedule for later
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                {timeMode === 'later' ? (
-                  <View style={styles.scheduleBlock}>
-                    <Text style={styles.scheduledLabel}>{formatScheduledAt(scheduledAt)}</Text>
-                    <View style={styles.scheduleButtons}>
-                      <TouchableOpacity
-                        style={styles.secondaryButton}
-                        onPress={() => setShowDatePicker(true)}
-                      >
-                        <Text style={styles.secondaryButtonText}>Change date</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.secondaryButton}
-                        onPress={() => setShowTimePicker(true)}
-                      >
-                        <Text style={styles.secondaryButtonText}>Change time</Text>
-                      </TouchableOpacity>
-                    </View>
-                    {showDatePicker ? (
-                      <DateTimePicker
-                        value={scheduledAt}
-                        mode="date"
-                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                        minimumDate={new Date()}
-                        onChange={handleDateChange}
-                      />
-                    ) : null}
-                    {showTimePicker ? (
-                      <DateTimePicker
-                        value={scheduledAt}
-                        mode="time"
-                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                        onChange={handleTimeChange}
-                      />
-                    ) : null}
+                      <Text style={styles.secondaryButtonText}>Change time</Text>
+                    </TouchableOpacity>
                   </View>
-                ) : null}
-              </View>
+                  {showDatePicker ? (
+                    <DateTimePicker
+                      value={scheduledAt}
+                      mode="date"
+                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                      minimumDate={new Date()}
+                      onChange={handleDateChange}
+                    />
+                  ) : null}
+                  {showTimePicker ? (
+                    <DateTimePicker
+                      value={scheduledAt}
+                      mode="time"
+                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                      onChange={handleTimeChange}
+                    />
+                  ) : null}
+                </View>
+              ) : null}
+            </View>
 
-              {error ? <Text style={styles.errorText}>{error}</Text> : null}
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-              <TouchableOpacity
-                style={[styles.submitButton, submitting && styles.submitButtonDisabled]}
-                onPress={handleSubmit}
-                disabled={submitting}
-              >
-                {submitting ? (
-                  <ActivityIndicator color={colors.surface} />
-                ) : (
-                  <Text style={styles.submitButtonText}>Request wash</Text>
-                )}
-              </TouchableOpacity>
-            </ScrollView>
-          </>
+            <TouchableOpacity
+              style={[styles.submitButton, submitting && styles.submitButtonDisabled]}
+              onPress={handleSubmit}
+              disabled={submitting}
+            >
+              {submitting ? (
+                <ActivityIndicator color={colors.surface} />
+              ) : (
+                <Text style={styles.submitButtonText}>Request wash</Text>
+              )}
+            </TouchableOpacity>
+          </ScrollView>
         )}
       </KeyboardAvoidingView>
     </ScreenLayout>
@@ -473,9 +326,6 @@ export function RequestWashScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   keyboardAvoid: {
-    flex: 1,
-  },
-  scrollBody: {
     flex: 1,
   },
   scrollContent: {
@@ -512,31 +362,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: spacing.sm,
   },
-  helperText: {
-    ...typography.bodySmall,
-    color: colors.textSecondary,
-    marginBottom: spacing.sm,
-  },
-  warningText: {
-    ...typography.bodySmall,
-    color: colors.warning,
-    marginBottom: spacing.sm,
-  },
   linkText: {
     ...typography.bodySmall,
     color: colors.primary,
     fontWeight: '600',
-    marginBottom: spacing.sm,
-  },
-  mapWrapper: {
-    height: 220,
-    borderRadius: 12,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  map: {
-    flex: 1,
+    marginBottom: spacing.md,
   },
   timeRow: {
     flexDirection: 'row',

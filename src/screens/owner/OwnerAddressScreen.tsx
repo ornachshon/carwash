@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -9,12 +9,8 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import {
-  LocationAutocomplete,
-  type LocationAutocompleteRef,
-} from '../../components/LocationAutocomplete';
+import { AddressInput } from '../../components/AddressInput';
 import { ScreenLayout } from '../../components/ScreenLayout';
-import { getGoogleMapsApiKey } from '../../config/googleMaps';
 import { useAuth } from '../../hooks/useAuth';
 import { updateOwnerAddress } from '../../services/vehicles';
 import { colors, spacing, typography } from '../../theme';
@@ -26,22 +22,11 @@ type Props = NativeStackScreenProps<OwnerStackParamList, 'OwnerAddress'>;
 
 export function OwnerAddressScreen({ navigation }: Props) {
   const { authUser, refreshProfile } = useAuth();
-  const apiKey = useMemo(() => getGoogleMapsApiKey(), []);
-  const locationAutocompleteRef = useRef<LocationAutocompleteRef>(null);
 
   const [addressText, setAddressText] = useState('');
   const [coordinates, setCoordinates] = useState<LatLng | null>(null);
-  const [placesWarning, setPlacesWarning] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-
-  const handlePlaceSelected = (address: string, coords: LatLng) => {
-    setAddressText(address);
-    setCoordinates(coords);
-    setPlacesWarning(null);
-    setError(null);
-    locationAutocompleteRef.current?.setAddressText(address);
-  };
 
   const handleSave = async () => {
     setError(null);
@@ -52,8 +37,8 @@ export function OwnerAddressScreen({ navigation }: Props) {
       return;
     }
 
-    if (apiKey && !coordinates) {
-      setError('Select an address from the suggestions so we can save your location.');
+    if (!coordinates) {
+      setError('Tap "Use my current location" so washers can find you.');
       return;
     }
 
@@ -64,7 +49,7 @@ export function OwnerAddressScreen({ navigation }: Props) {
 
     setSubmitting(true);
     try {
-      await updateOwnerAddress(authUser.id, trimmed, coordinates ?? undefined);
+      await updateOwnerAddress(authUser.id, trimmed, coordinates);
       await refreshProfile();
       navigation.replace('AddVehicle');
     } catch (err) {
@@ -80,70 +65,40 @@ export function OwnerAddressScreen({ navigation }: Props) {
     <ScreenLayout
       title="Your address"
       subtitle="Used as the default location for wash requests. You can change this later."
+      scroll
+      keyboardShouldPersistTaps="handled"
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.keyboardAvoid}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
       >
-        {/* GooglePlacesAutocomplete FlatList must NOT be inside ScrollView */}
-        <LocationAutocomplete
-          ref={locationAutocompleteRef}
-          apiKey={apiKey}
+        <AddressInput
           address={addressText}
-          onAddressChange={(text) => {
-            setAddressText(text);
-            if (!text.trim()) {
-              setCoordinates(null);
-            }
-          }}
-          onPlaceSelected={handlePlaceSelected}
-          onAutocompleteError={(message) => setPlacesWarning(message)}
-          onClearError={() => setPlacesWarning(null)}
+          coordinates={coordinates}
+          onAddressChange={setAddressText}
+          onCoordinatesChange={setCoordinates}
+          placeholder="e.g. 100 Dizengoff St, Tel Aviv"
         />
 
-        <ScrollView
-          style={styles.scrollBody}
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          {placesWarning ? <Text style={styles.warningText}>{placesWarning}</Text> : null}
-          {error ? <Text style={styles.formError}>{error}</Text> : null}
+        {error ? <Text style={styles.formError}>{error}</Text> : null}
 
-          <TouchableOpacity
-            style={[styles.button, submitting && styles.buttonDisabled]}
-            onPress={handleSave}
-            disabled={submitting}
-          >
-            {submitting ? (
-              <ActivityIndicator color={colors.surface} />
-            ) : (
-              <Text style={styles.buttonText}>Continue</Text>
-            )}
-          </TouchableOpacity>
-        </ScrollView>
+        <TouchableOpacity
+          style={[styles.button, submitting && styles.buttonDisabled]}
+          onPress={handleSave}
+          disabled={submitting}
+        >
+          {submitting ? (
+            <ActivityIndicator color={colors.surface} />
+          ) : (
+            <Text style={styles.buttonText}>Continue</Text>
+          )}
+        </TouchableOpacity>
       </KeyboardAvoidingView>
     </ScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  keyboardAvoid: {
-    flex: 1,
-  },
-  scrollBody: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xl,
-  },
-  warningText: {
-    ...typography.bodySmall,
-    color: colors.warning,
-    marginBottom: spacing.md,
-  },
   formError: {
     ...typography.bodySmall,
     color: colors.error,

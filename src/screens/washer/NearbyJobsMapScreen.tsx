@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import MapView, { Marker, type Region } from 'react-native-maps';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ScreenLayout } from '../../components/ScreenLayout';
 import { useAuth } from '../../hooks/useAuth';
@@ -20,15 +19,6 @@ import { distanceKm, formatDistanceKm, parseGeographyPoint, type LatLng } from '
 import type { WasherStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<WasherStackParamList, 'NearbyJobsMap'>;
-
-function regionFromCoords(coords: LatLng, delta = 0.08): Region {
-  return {
-    latitude: coords.latitude,
-    longitude: coords.longitude,
-    latitudeDelta: delta,
-    longitudeDelta: delta,
-  };
-}
 
 function formatRequestedAt(iso: string): string {
   return new Date(iso).toLocaleString(undefined, {
@@ -55,7 +45,6 @@ export function NearbyJobsMapScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     if (!authUser) {
@@ -88,16 +77,6 @@ export function NearbyJobsMapScreen({ navigation }: Props) {
     setRefreshing(false);
   }, [loadData]);
 
-  const mapRegion = useMemo(() => {
-    if (washerLocation) {
-      return regionFromCoords(washerLocation);
-    }
-    if (jobs[0]?.location) {
-      return regionFromCoords(jobs[0].location);
-    }
-    return regionFromCoords({ latitude: 32.0853, longitude: 34.7818 });
-  }, [washerLocation, jobs]);
-
   const openJob = (jobId: string) => {
     navigation.navigate('JobDetail', { jobId });
   };
@@ -109,13 +88,7 @@ export function NearbyJobsMapScreen({ navigation }: Props) {
         : null;
 
     return (
-      <TouchableOpacity
-        style={[styles.jobCard, selectedJobId === item.id && styles.jobCardSelected]}
-        onPress={() => {
-          setSelectedJobId(item.id);
-          openJob(item.id);
-        }}
-      >
+      <TouchableOpacity style={styles.jobCard} onPress={() => openJob(item.id)}>
         <View style={styles.jobCardHeader}>
           <Text style={styles.jobVehicle}>{vehicleLabel(item)}</Text>
           {distance ? <Text style={styles.jobDistance}>{distance}</Text> : null}
@@ -125,36 +98,6 @@ export function NearbyJobsMapScreen({ navigation }: Props) {
       </TouchableOpacity>
     );
   };
-
-  const listHeader = (
-    <View style={styles.mapWrapper}>
-      <MapView style={styles.map} initialRegion={mapRegion} region={mapRegion}>
-        {washerLocation ? (
-          <Marker
-            coordinate={washerLocation}
-            pinColor={colors.primary}
-            title="You"
-            description="Your current location"
-          />
-        ) : null}
-        {jobs.map((job) =>
-          job.location ? (
-            <Marker
-              key={job.id}
-              coordinate={job.location}
-              pinColor={selectedJobId === job.id ? colors.secondary : colors.warning}
-              title={vehicleLabel(job)}
-              description={job.address_text}
-              onPress={() => {
-                setSelectedJobId(job.id);
-                openJob(job.id);
-              }}
-            />
-          ) : null,
-        )}
-      </MapView>
-    </View>
-  );
 
   return (
     <ScreenLayout title="Nearby jobs" subtitle="Requested washes within your service radius">
@@ -170,11 +113,10 @@ export function NearbyJobsMapScreen({ navigation }: Props) {
             data={jobs}
             keyExtractor={(item) => item.id}
             renderItem={renderJobCard}
-            ListHeaderComponent={listHeader}
             ListEmptyComponent={
               <View style={styles.emptyBlock}>
                 <Text style={styles.emptyText}>
-                  No open jobs nearby. Pull to refresh or widen your service radius later.
+                  No open jobs nearby. Pull to refresh when you are online.
                 </Text>
               </View>
             }
@@ -193,17 +135,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  mapWrapper: {
-    height: 220,
-    borderRadius: 12,
-    overflow: 'hidden',
-    marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  map: {
-    flex: 1,
-  },
   listContent: {
     paddingBottom: spacing.xl,
     flexGrow: 1,
@@ -215,9 +146,6 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     padding: spacing.md,
     marginBottom: spacing.sm,
-  },
-  jobCardSelected: {
-    borderColor: colors.primary,
   },
   jobCardHeader: {
     flexDirection: 'row',

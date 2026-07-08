@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
+  Linking,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
-import MapView, { Marker, type Region } from 'react-native-maps';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ScreenLayout } from '../../components/ScreenLayout';
 import { useAuth } from '../../hooks/useAuth';
@@ -19,19 +19,9 @@ import {
 } from '../../services/washerJobs';
 import { colors, spacing, typography } from '../../theme';
 import { getErrorMessage } from '../../utils/authErrors';
-import type { LatLng } from '../../utils/geo';
 import type { WasherStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<WasherStackParamList, 'JobDetail'>;
-
-function regionFromCoords(coords: LatLng, delta = 0.02): Region {
-  return {
-    latitude: coords.latitude,
-    longitude: coords.longitude,
-    latitudeDelta: delta,
-    longitudeDelta: delta,
-  };
-}
 
 function formatRequestedAt(iso: string): string {
   return new Date(iso).toLocaleString(undefined, {
@@ -69,11 +59,16 @@ export function JobDetailScreen({ route, navigation }: Props) {
     loadJob().finally(() => setLoading(false));
   }, [loadJob]);
 
-  const coordinates = useMemo(() => (job ? getJobCoordinates(job) : null), [job]);
-  const mapRegion = useMemo(
-    () => (coordinates ? regionFromCoords(coordinates) : null),
-    [coordinates],
-  );
+  const coordinates = job ? getJobCoordinates(job) : null;
+
+  const openInMaps = () => {
+    if (!coordinates) {
+      return;
+    }
+    const query = encodeURIComponent(job?.address_text ?? `${coordinates.latitude},${coordinates.longitude}`);
+    const url = `https://www.google.com/maps/search/?api=1&query=${query}`;
+    void Linking.openURL(url);
+  };
 
   const canAccept =
     job?.status === 'requested' &&
@@ -140,12 +135,10 @@ export function JobDetailScreen({ route, navigation }: Props) {
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>Location</Text>
             <Text style={styles.bodyText}>{job.address_text}</Text>
-            {mapRegion ? (
-              <View style={styles.mapWrapper}>
-                <MapView style={styles.map} initialRegion={mapRegion} region={mapRegion}>
-                  {coordinates ? <Marker coordinate={coordinates} /> : null}
-                </MapView>
-              </View>
+            {coordinates ? (
+              <TouchableOpacity style={styles.mapsLink} onPress={openInMaps}>
+                <Text style={styles.mapsLinkText}>Open in Google Maps</Text>
+              </TouchableOpacity>
             ) : null}
           </View>
 
@@ -249,16 +242,14 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
-  mapWrapper: {
-    height: 180,
-    borderRadius: 12,
-    overflow: 'hidden',
+  mapsLink: {
     marginTop: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
+    alignSelf: 'flex-start',
   },
-  map: {
-    flex: 1,
+  mapsLinkText: {
+    ...typography.bodySmall,
+    color: colors.primary,
+    fontWeight: '600',
   },
   acceptButton: {
     backgroundColor: colors.secondary,
