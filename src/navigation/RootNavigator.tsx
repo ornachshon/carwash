@@ -1,7 +1,7 @@
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { hasRole, useAuth } from '../hooks/useAuth';
+import { useAuth } from '../hooks/useAuth';
 import { RoleSelectScreen } from '../screens/auth/RoleSelectScreen';
 import { colors } from '../theme';
 import { AuthNavigator } from './AuthNavigator';
@@ -11,11 +11,17 @@ import type { RootStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+const headerOptions = {
+  headerStyle: { backgroundColor: colors.surface },
+  headerTintColor: colors.primary,
+  headerTitleStyle: { color: colors.text },
+};
+
 export function RootNavigator() {
-  const { session, profile, loading } = useAuth();
+  const { session, activeRole, loading } = useAuth();
 
   const navigationKey = session?.user?.id
-    ? `${session.user.id}-${profile?.role ?? 'pending'}`
+    ? `${session.user.id}-${activeRole ?? 'choose-role'}`
     : 'signed-out';
 
   if (loading) {
@@ -28,17 +34,19 @@ export function RootNavigator() {
 
   return (
     <NavigationContainer key={navigationKey}>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Navigator screenOptions={{ ...headerOptions, contentStyle: { backgroundColor: colors.background } }}>
         {!session ? (
-          <Stack.Screen name="Auth" component={AuthNavigator} />
-        ) : !hasRole(profile) ? (
-          <Stack.Screen name="RoleSelect" component={RoleSelectScreen} />
-        ) : profile.role === 'washer' ? (
-          <Stack.Screen name="Washer" component={WasherNavigator} />
-        ) : profile.role === 'owner' ? (
-          <Stack.Screen name="Owner" component={OwnerNavigator} />
+          <Stack.Screen name="Auth" component={AuthNavigator} options={{ headerShown: false }} />
+        ) : activeRole !== 'owner' && activeRole !== 'washer' ? (
+          <Stack.Screen
+            name="RoleSelect"
+            component={RoleSelectScreen}
+            options={{ title: 'Choose role', headerBackVisible: false }}
+          />
+        ) : activeRole === 'owner' ? (
+          <Stack.Screen name="Owner" component={OwnerNavigator} options={{ headerShown: false }} />
         ) : (
-          <Stack.Screen name="RoleSelect" component={RoleSelectScreen} />
+          <Stack.Screen name="Washer" component={WasherNavigator} options={{ headerShown: false }} />
         )}
       </Stack.Navigator>
     </NavigationContainer>

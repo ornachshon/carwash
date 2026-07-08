@@ -16,10 +16,12 @@ interface AuthContextValue {
   session: Session | null;
   authUser: AuthUser | null;
   profile: User | null;
+  activeRole: UserRole | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, fullName: string, phone: string) => Promise<{ needsEmailConfirmation: boolean }>;
   selectRole: (role: UserRole) => Promise<void>;
+  returnToRoleSelect: () => void;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -30,6 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [profile, setProfile] = useState<User | null>(null);
+  const [activeRole, setActiveRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = useCallback(async (userId: string) => {
@@ -60,14 +63,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
       setSession(currentSession);
       setAuthUser(currentSession?.user ?? null);
+      // Always ask for role on app launch, even if the account already has one saved.
+      setActiveRole(null);
       setLoading(false);
     });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
       setSession(nextSession);
       setAuthUser(nextSession?.user ?? null);
+
+      if (
+        !nextSession ||
+        event === 'SIGNED_IN' ||
+        event === 'INITIAL_SESSION' ||
+        event === 'SIGNED_OUT'
+      ) {
+        setActiveRole(null);
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -82,7 +96,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     fetchProfile(authUser.id).then(setProfile);
   }, [authUser, fetchProfile]);
 
+  const returnToRoleSelect = useCallback(() => {
+    setActiveRole(null);
+  }, []);
+
   const signIn = useCallback(async (email: string, password: string) => {
+    setActiveRole(null);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
   }, []);
@@ -124,13 +143,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (updateError) throw updateError;
 
       if (role === 'washer') {
-        const { error: washerError } = await supabase.from('washer_profiles').insert({
-          user_id: authUser.id,
-          is_available: false,
-        });
+        const { error: washerError } = await supabase.from('washer_profiles').upsert(
+          {
+            user_id: authUser.id,
+            is_available: false,
+          },
+          { onConflict: 'user_id' },
+        );
         if (washerError) throw washerError;
       }
 
+      setActiveRole(role);
       await refreshProfile();
     },
     [authUser, refreshProfile],
@@ -140,6 +163,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
     setProfile(null);
+    setActiveRole(null);
   }, []);
 
   const value = useMemo(
@@ -147,14 +171,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       authUser,
       profile,
+      activeRole,
       loading,
       signIn,
       signUp,
       selectRole,
+      returnToRoleSelect,
       signOut,
       refreshProfile,
     }),
-    [session, authUser, profile, loading, signIn, signUp, selectRole, signOut, refreshProfile],
+    [session, authUser, profile, activeRole, loading, signIn, signUp, selectRole, returnToRoleSelect, signOut, refreshProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

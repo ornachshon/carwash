@@ -24,17 +24,17 @@ export function RoleSelectScreen() {
   };
 
   return (
-    <ScreenLayout title="Choose your role" subtitle="You can only pick one role per account">
+    <ScreenLayout title="Choose your role" subtitle="Pick how you want to use CarWash this session">
       <View style={styles.options}>
         <RoleCard
-          title="Car Owner"
+          title="I need a wash"
           description="Request a mobile wash at your location"
           loading={submitting === 'owner'}
           disabled={submitting !== null}
           onPress={() => handleSelect('owner')}
         />
         <RoleCard
-          title="Washer"
+          title="I'm a washer"
           description="Accept nearby jobs and wash on-site"
           loading={submitting === 'washer'}
           disabled={submitting !== null}

@@ -50,7 +50,7 @@ export function RateUserScreen() {
   const route = useRoute<RateUserRoute>();
   const navigation =
     useNavigation<NativeStackNavigationProp<OwnerStackParamList & WasherStackParamList>>();
-  const { authUser, profile } = useAuth();
+  const { authUser, profile, activeRole } = useAuth();
   const { jobId } = route.params;
 
   const [rateeName, setRateeName] = useState<string | null>(null);
@@ -64,7 +64,7 @@ export function RateUserScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const exitAfterRating = useCallback(() => {
-    if (profile?.role === 'washer') {
+    if (activeRole === 'washer') {
       navigation.reset({
         index: 0,
         routes: [{ name: 'AvailabilityToggle' }],
@@ -76,10 +76,10 @@ export function RateUserScreen() {
       index: 0,
       routes: [{ name: 'RequestWash' }],
     });
-  }, [navigation, profile?.role]);
+  }, [activeRole, navigation]);
 
   useEffect(() => {
-    if (!authUser || !hasRole(profile)) {
+    if (!authUser || !hasRole(profile) || !activeRole) {
       setLoading(false);
       setError('You must be signed in with a role to rate this job.');
       return;
