@@ -18,7 +18,7 @@ interface AuthContextValue {
   profile: User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, fullName: string, phone: string) => Promise<void>;
+  signUp: (email: string, password: string, fullName: string, phone: string) => Promise<{ needsEmailConfirmation: boolean }>;
   selectRole: (role: UserRole) => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -89,7 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = useCallback(
     async (email: string, password: string, fullName: string, phone: string) => {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -104,6 +104,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error('[useAuth] auth.signUp failed:', getErrorMessage(error), error);
         throw error;
       }
+
+      return { needsEmailConfirmation: data.session == null };
     },
     [],
   );

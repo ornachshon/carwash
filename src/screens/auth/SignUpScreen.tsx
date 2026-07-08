@@ -43,8 +43,12 @@ export function SignUpScreen({ navigation }: Props) {
 
     setSubmitting(true);
     try {
-      await signUp(email.trim(), password, fullName.trim(), phone.trim());
-      setSuccess('Account created. Check your email to confirm, then sign in.');
+      const { needsEmailConfirmation } = await signUp(email.trim(), password, fullName.trim(), phone.trim());
+      setSuccess(
+        needsEmailConfirmation
+          ? 'Account created. Check your email to confirm, then sign in.'
+          : 'Account created. Continue to pick your role.',
+      );
     } catch (err) {
       const raw = getErrorMessage(err);
       console.error('[SignUpScreen] signUp failed:', raw, err);

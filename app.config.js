@@ -4,8 +4,10 @@ const PLACEHOLDER_KEY = 'PASTE_YOUR_GOOGLE_MAPS_API_KEY_HERE';
 
 /** @type {import('expo/config').ExpoConfig} */
 module.exports = () => {
-  const googleMapsApiKey =
-    process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY?.trim() || PLACEHOLDER_KEY;
+  const googleMapsNativeApiKey =
+    process.env.EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_API_KEY?.trim() ||
+    process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY?.trim() ||
+    PLACEHOLDER_KEY;
 
   return {
     ...appJson.expo,
@@ -14,7 +16,7 @@ module.exports = () => {
       config: {
         ...appJson.expo.android?.config,
         googleMaps: {
-          apiKey: googleMapsApiKey,
+          apiKey: googleMapsNativeApiKey,
         },
       },
     },
