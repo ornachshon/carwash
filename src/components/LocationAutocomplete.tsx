@@ -6,6 +6,9 @@ import { AuthTextInput } from './AuthTextInput';
 import { colors, spacing, typography } from '../theme';
 import { TEL_AVIV_CENTER, type LatLng } from '../utils/geo';
 
+/** Shared input height — used for textInput minHeight and dropdown listView offset. */
+const INPUT_MIN_HEIGHT = 54;
+
 export interface LocationAutocompleteRef {
   setAddressText: (text: string) => void;
 }
@@ -25,7 +28,6 @@ export const LocationAutocomplete = forwardRef<LocationAutocompleteRef, Location
     ref,
   ) {
     const placesRef = useRef<GooglePlacesAutocompleteRef>(null);
-    const lastLoggedFirstResult = useRef<string | null>(null);
 
     useImperativeHandle(ref, () => ({
       setAddressText: (text: string) => {
@@ -45,8 +47,7 @@ export const LocationAutocomplete = forwardRef<LocationAutocompleteRef, Location
             autoCorrect={false}
           />
           <Text style={styles.warningText}>
-            Google Places search unavailable — configure android.config.googleMaps.apiKey in app.json
-            or EXPO_PUBLIC_GOOGLE_MAPS_API_KEY. You can still drop a pin on the map.
+            Google Places search unavailable — API key not configured in this build.
           </Text>
         </View>
       );
@@ -68,23 +69,17 @@ export const LocationAutocomplete = forwardRef<LocationAutocompleteRef, Location
           disableScroll
           query={{
             key: apiKey,
+            language: 'he',
             components: 'country:il',
             location: `${TEL_AVIV_CENTER.latitude},${TEL_AVIV_CENTER.longitude}`,
             radius: 50_000,
           }}
           onPress={(data, details = null) => {
             onClearError();
-            console.log('[LocationAutocomplete] Place selected:', {
-              description: data.description,
-              placeId: data.place_id,
-              hasDetails: details != null,
-              location: details?.geometry?.location ?? null,
-            });
             const location = details?.geometry?.location;
             if (!location) {
-              console.warn('[LocationAutocomplete] Selected place missing geometry:', data);
               onAutocompleteError(
-                'Selected place has no location. Try another result or drop a pin on the map.',
+                'Selected place has no location. Try another result or use your current location.',
               );
               return;
             }
@@ -95,30 +90,9 @@ export const LocationAutocomplete = forwardRef<LocationAutocompleteRef, Location
               longitude: location.lng,
             });
           }}
-          onFail={(error) => {
-            console.error('[LocationAutocomplete] Places autocomplete failed:', error);
+          onFail={() => {
             onAutocompleteError(
-              'Address search unavailable. Check your connection or drop a pin on the map.',
-            );
-          }}
-          onNotFound={() => {
-            console.log('[LocationAutocomplete] Places autocomplete returned no results');
-          }}
-          onTimeout={() => {
-            console.warn('[LocationAutocomplete] Places autocomplete request timed out');
-          }}
-          renderRow={(rowData, index) => {
-            if (index === 0 && rowData.description !== lastLoggedFirstResult.current) {
-              lastLoggedFirstResult.current = rowData.description ?? null;
-              console.log('[LocationAutocomplete] Autocomplete predictions received:', {
-                firstResult: rowData.description,
-              });
-            }
-
-            return (
-              <View style={styles.row}>
-                <Text style={styles.description}>{rowData.description}</Text>
-              </View>
+              'Address search unavailable. Check your connection or use your current location.',
             );
           }}
           textInputProps={{
@@ -171,11 +145,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
     color: colors.text,
-    height: 48,
+    minHeight: INPUT_MIN_HEIGHT,
   },
   listView: {
     position: 'absolute',
-    top: 48,
+    top: INPUT_MIN_HEIGHT,
     left: 0,
     right: 0,
     zIndex: 1000,

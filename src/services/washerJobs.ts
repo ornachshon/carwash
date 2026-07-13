@@ -115,6 +115,38 @@ export async function acceptWashJob(jobId: string, washerId: string): Promise<Wa
   return data;
 }
 
+export async function startWashJob(
+  jobId: string,
+  washerId: string,
+  beforeWashPhotoUrl?: string | null,
+): Promise<WashJob> {
+  const patch: Partial<WashJob> = {
+    status: 'in_progress',
+  };
+
+  if (beforeWashPhotoUrl) {
+    patch.before_wash_photo_url = beforeWashPhotoUrl;
+  }
+
+  const { data, error } = await supabase
+    .from('wash_jobs')
+    .update(patch)
+    .eq('id', jobId)
+    .eq('washer_id', washerId)
+    .select()
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(getErrorMessage(error));
+  }
+
+  if (!data) {
+    throw new Error('Could not start this wash.');
+  }
+
+  return data;
+}
+
 export async function completeWashJob(
   jobId: string,
   washerId: string,

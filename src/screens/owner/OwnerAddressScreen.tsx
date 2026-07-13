@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -11,6 +11,7 @@ import {
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AddressInput } from '../../components/AddressInput';
 import { ScreenLayout } from '../../components/ScreenLayout';
+import { getGooglePlacesApiKey } from '../../config/googleMaps';
 import { useAuth } from '../../hooks/useAuth';
 import { updateOwnerAddress } from '../../services/vehicles';
 import { colors, spacing, typography } from '../../theme';
@@ -22,9 +23,11 @@ type Props = NativeStackScreenProps<OwnerStackParamList, 'OwnerAddress'>;
 
 export function OwnerAddressScreen({ navigation }: Props) {
   const { authUser, refreshProfile } = useAuth();
+  const apiKey = useMemo(() => getGooglePlacesApiKey(), []);
 
   const [addressText, setAddressText] = useState('');
   const [coordinates, setCoordinates] = useState<LatLng | null>(null);
+  const [placesWarning, setPlacesWarning] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -38,7 +41,7 @@ export function OwnerAddressScreen({ navigation }: Props) {
     }
 
     if (!coordinates) {
-      setError('Tap "Use my current location" so washers can find you.');
+      setError('Select an address from the suggestions or use your current location.');
       return;
     }
 
@@ -65,40 +68,60 @@ export function OwnerAddressScreen({ navigation }: Props) {
     <ScreenLayout
       title="Your address"
       subtitle="Used as the default location for wash requests. You can change this later."
-      scroll
-      keyboardShouldPersistTaps="handled"
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.keyboardAvoid}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
       >
         <AddressInput
+          apiKey={apiKey}
           address={addressText}
           coordinates={coordinates}
           onAddressChange={setAddressText}
           onCoordinatesChange={setCoordinates}
+          onPlacesWarning={setPlacesWarning}
           placeholder="e.g. 100 Dizengoff St, Tel Aviv"
         />
 
-        {error ? <Text style={styles.formError}>{error}</Text> : null}
-
-        <TouchableOpacity
-          style={[styles.button, submitting && styles.buttonDisabled]}
-          onPress={handleSave}
-          disabled={submitting}
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
         >
-          {submitting ? (
-            <ActivityIndicator color={colors.surface} />
-          ) : (
-            <Text style={styles.buttonText}>Continue</Text>
-          )}
-        </TouchableOpacity>
+          {placesWarning ? <Text style={styles.warningText}>{placesWarning}</Text> : null}
+          {error ? <Text style={styles.formError}>{error}</Text> : null}
+
+          <TouchableOpacity
+            style={[styles.button, submitting && styles.buttonDisabled]}
+            onPress={handleSave}
+            disabled={submitting}
+          >
+            {submitting ? (
+              <ActivityIndicator color={colors.surface} />
+            ) : (
+              <Text style={styles.buttonText}>Continue</Text>
+            )}
+          </TouchableOpacity>
+        </ScrollView>
       </KeyboardAvoidingView>
     </ScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
+  keyboardAvoid: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xl,
+  },
+  warningText: {
+    ...typography.bodySmall,
+    color: colors.warning,
+    marginBottom: spacing.md,
+  },
   formError: {
     ...typography.bodySmall,
     color: colors.error,

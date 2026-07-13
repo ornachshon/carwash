@@ -4,7 +4,13 @@ import { getErrorMessage } from '../utils/authErrors';
 
 export interface OwnerJobStatusDetail extends Pick<
   WashJob,
-  'id' | 'status' | 'washer_id' | 'address_text' | 'completion_photo_url' | 'requested_at'
+  | 'id'
+  | 'status'
+  | 'washer_id'
+  | 'address_text'
+  | 'before_wash_photo_url'
+  | 'completion_photo_url'
+  | 'requested_at'
 > {
   washer: Pick<User, 'id' | 'full_name' | 'phone'> | null;
 }
@@ -18,6 +24,7 @@ export async function fetchOwnerJobStatus(jobId: string): Promise<OwnerJobStatus
       status,
       washer_id,
       address_text,
+      before_wash_photo_url,
       completion_photo_url,
       requested_at,
       washer:users!wash_jobs_washer_id_fkey (id, full_name, phone)

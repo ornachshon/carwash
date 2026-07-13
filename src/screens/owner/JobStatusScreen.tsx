@@ -118,6 +118,9 @@ export function OwnerJobStatusScreen({ route, navigation }: Props) {
   const status = job?.status ?? 'requested';
   const statusColor = STATUS_COLORS[status as WashJobStatus] ?? colors.textSecondary;
   const showWasher = status !== 'requested' && job?.washer;
+  const showBeforePhoto =
+    (status === 'in_progress' || status === 'completed' || status === 'paid') &&
+    !!job?.before_wash_photo_url;
   const showCompletionPhoto =
     (status === 'completed' || status === 'paid') && !!job?.completion_photo_url;
   const showRateButton = status === 'completed' || status === 'paid';
@@ -164,10 +167,17 @@ export function OwnerJobStatusScreen({ route, navigation }: Props) {
             </View>
           ) : null}
 
+          {showBeforePhoto ? (
+            <View style={styles.photoCard}>
+              <Text style={styles.sectionTitle}>Before wash</Text>
+              <Image source={{ uri: job!.before_wash_photo_url! }} style={styles.jobPhoto} />
+            </View>
+          ) : null}
+
           {showCompletionPhoto ? (
             <View style={styles.completionCard}>
-              <Text style={styles.sectionTitle}>Your car has been washed ✓</Text>
-              <Image source={{ uri: job!.completion_photo_url! }} style={styles.completionPhoto} />
+              <Text style={styles.sectionTitle}>After wash ✓</Text>
+              <Image source={{ uri: job!.completion_photo_url! }} style={styles.jobPhoto} />
             </View>
           ) : null}
 
@@ -271,7 +281,15 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     marginBottom: spacing.lg,
   },
-  completionPhoto: {
+  photoCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+  },
+  jobPhoto: {
     width: '100%',
     height: 220,
     borderRadius: 12,

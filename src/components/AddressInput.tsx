@@ -1,30 +1,47 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { AuthTextInput } from './AuthTextInput';
+import {
+  LocationAutocomplete,
+  type LocationAutocompleteRef,
+} from './LocationAutocomplete';
 import { colors, spacing, typography } from '../theme';
 import { getDeviceLocation } from '../utils/location';
 import { getErrorMessage } from '../utils/authErrors';
 import type { LatLng } from '../utils/geo';
 
 interface AddressInputProps {
+  apiKey: string | null;
   label?: string;
   address: string;
   coordinates: LatLng | null;
   onAddressChange: (text: string) => void;
   onCoordinatesChange: (coords: LatLng | null) => void;
+  onPlacesWarning?: (message: string | null) => void;
   placeholder?: string;
 }
 
 export function AddressInput({
+  apiKey,
   label = 'Address',
   address,
   coordinates,
   onAddressChange,
   onCoordinatesChange,
+  onPlacesWarning,
   placeholder = 'Street, city',
 }: AddressInputProps) {
+  const autocompleteRef = useRef<LocationAutocompleteRef>(null);
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
+
+  const handlePlaceSelected = (selectedAddress: string, coords: LatLng) => {
+    onAddressChange(selectedAddress);
+    onCoordinatesChange(coords);
+    setLocationError(null);
+    onPlacesWarning?.(null);
+    autocompleteRef.current?.setAddressText(selectedAddress);
+  };
 
   const handleUseMyLocation = async () => {
     setLocating(true);
@@ -33,6 +50,7 @@ export function AddressInput({
     try {
       const coords = await getDeviceLocation();
       onCoordinatesChange(coords);
+      onPlacesWarning?.(null);
     } catch (err) {
       setLocationError(getErrorMessage(err));
       onCoordinatesChange(null);
@@ -43,19 +61,36 @@ export function AddressInput({
 
   return (
     <View style={styles.wrapper}>
-      <AuthTextInput
-        label={label}
-        value={address}
-        onChangeText={(text) => {
-          onAddressChange(text);
-          if (!text.trim()) {
-            onCoordinatesChange(null);
-          }
-        }}
-        placeholder={placeholder}
-        autoCapitalize="words"
-        autoCorrect={false}
-      />
+      {apiKey ? (
+        <LocationAutocomplete
+          ref={autocompleteRef}
+          apiKey={apiKey}
+          address={address}
+          onAddressChange={(text) => {
+            onAddressChange(text);
+            if (!text.trim()) {
+              onCoordinatesChange(null);
+            }
+          }}
+          onPlaceSelected={handlePlaceSelected}
+          onAutocompleteError={(message) => onPlacesWarning?.(message)}
+          onClearError={() => onPlacesWarning?.(null)}
+        />
+      ) : (
+        <AuthTextInput
+          label={label}
+          value={address}
+          onChangeText={(text) => {
+            onAddressChange(text);
+            if (!text.trim()) {
+              onCoordinatesChange(null);
+            }
+          }}
+          placeholder={placeholder}
+          autoCapitalize="words"
+          autoCorrect={false}
+        />
+      )}
 
       <TouchableOpacity
         style={[styles.locationButton, locating && styles.locationButtonDisabled]}
@@ -75,11 +110,19 @@ export function AddressInput({
         </Text>
       ) : (
         <Text style={styles.hintText}>
-          Enter your address and tap the button above to set your location for nearby matching.
+          {apiKey
+            ? 'Search for an address or use your current location.'
+            : 'Enter your address and use your current location.'}
         </Text>
       )}
 
       {locationError ? <Text style={styles.errorText}>{locationError}</Text> : null}
+
+      {!apiKey ? (
+        <Text style={styles.warningText}>
+          Address search unavailable — Google Places API key not configured in this build.
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -87,6 +130,7 @@ export function AddressInput({
 const styles = StyleSheet.create({
   wrapper: {
     marginBottom: spacing.md,
+    zIndex: 10,
   },
   locationButton: {
     alignSelf: 'flex-start',
@@ -98,6 +142,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     minHeight: 44,
     justifyContent: 'center',
+    marginTop: spacing.sm,
   },
   locationButtonDisabled: {
     opacity: 0.7,
@@ -120,6 +165,11 @@ const styles = StyleSheet.create({
   errorText: {
     ...typography.bodySmall,
     color: colors.error,
+    marginTop: spacing.sm,
+  },
+  warningText: {
+    ...typography.caption,
+    color: colors.warning,
     marginTop: spacing.sm,
   },
 });

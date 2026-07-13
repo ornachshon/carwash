@@ -44,9 +44,13 @@ export async function uploadVehiclePhoto(
 
 const COMPLETION_BUCKET = 'completion-photos';
 
-export async function uploadCompletionPhoto(jobId: string, localUri: string): Promise<string> {
+async function uploadJobPhoto(
+  jobId: string,
+  localUri: string,
+  filename: 'before' | 'completion',
+): Promise<string> {
   const ext = extensionFromUri(localUri);
-  const path = `${jobId}/completion.${ext === 'jpg' ? 'jpg' : ext}`;
+  const path = `${jobId}/${filename}.${ext === 'jpg' ? 'jpg' : ext}`;
 
   const response = await fetch(localUri);
   const arrayBuffer = await response.arrayBuffer();
@@ -64,4 +68,12 @@ export async function uploadCompletionPhoto(jobId: string, localUri: string): Pr
 
   const { data } = supabase.storage.from(COMPLETION_BUCKET).getPublicUrl(path);
   return data.publicUrl;
+}
+
+export async function uploadBeforeWashPhoto(jobId: string, localUri: string): Promise<string> {
+  return uploadJobPhoto(jobId, localUri, 'before');
+}
+
+export async function uploadCompletionPhoto(jobId: string, localUri: string): Promise<string> {
+  return uploadJobPhoto(jobId, localUri, 'completion');
 }

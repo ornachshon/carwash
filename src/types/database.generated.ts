@@ -187,6 +187,7 @@ export type Database = {
         Row: {
           accepted_at: string | null
           address_text: string
+          before_wash_photo_url: string | null
           completed_at: string | null
           completion_photo_url: string | null
           id: string
@@ -202,6 +203,7 @@ export type Database = {
         Insert: {
           accepted_at?: string | null
           address_text: string
+          before_wash_photo_url?: string | null
           completed_at?: string | null
           completion_photo_url?: string | null
           id?: string
@@ -217,6 +219,7 @@ export type Database = {
         Update: {
           accepted_at?: string | null
           address_text?: string
+          before_wash_photo_url?: string | null
           completed_at?: string | null
           completion_photo_url?: string | null
           id?: string

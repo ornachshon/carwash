@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -15,6 +15,7 @@ import { AddressInput } from '../../components/AddressInput';
 import { ScreenLayout } from '../../components/ScreenLayout';
 import { SignOutButton } from '../../components/SignOutButton';
 import { VehiclePicker } from '../../components/VehiclePicker';
+import { getGooglePlacesApiKey } from '../../config/googleMaps';
 import { useAuth } from '../../hooks/useAuth';
 import { fetchOwnerVehicles } from '../../services/vehicles';
 import { createWashJob } from '../../services/washJobs';
@@ -39,6 +40,7 @@ function formatScheduledAt(date: Date): string {
 
 export function RequestWashScreen({ navigation }: Props) {
   const { authUser, profile } = useAuth();
+  const apiKey = useMemo(() => getGooglePlacesApiKey(), []);
 
   const savedAddress = profile?.address_text?.trim() ?? '';
   const savedLocation = parseGeographyPoint(profile?.default_location);
@@ -48,6 +50,7 @@ export function RequestWashScreen({ navigation }: Props) {
   const [loadingVehicles, setLoadingVehicles] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [placesWarning, setPlacesWarning] = useState<string | null>(null);
 
   const [addressLabel, setAddressLabel] = useState(savedAddress);
   const [coordinates, setCoordinates] = useState<LatLng | null>(savedLocation);
@@ -158,7 +161,7 @@ export function RequestWashScreen({ navigation }: Props) {
     }
 
     if (!coordinates) {
-      setError('Tap "Use my current location" to set where the washer should come.');
+      setError('Select an address from the suggestions or use your current location.');
       return;
     }
 
@@ -214,11 +217,7 @@ export function RequestWashScreen({ navigation }: Props) {
             </TouchableOpacity>
           </View>
         ) : (
-          <ScrollView
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-          >
+          <>
             <VehiclePicker
               vehicles={vehicles}
               selectedId={selectedVehicleId}
@@ -228,18 +227,29 @@ export function RequestWashScreen({ navigation }: Props) {
             <Text style={styles.sectionLabel}>Location</Text>
 
             <AddressInput
+              apiKey={apiKey}
               address={addressLabel}
               coordinates={coordinates}
               onAddressChange={setAddressLabel}
               onCoordinatesChange={setCoordinates}
+              onPlacesWarning={setPlacesWarning}
               placeholder="Where should the washer come?"
             />
+
+            {placesWarning ? <Text style={styles.warningText}>{placesWarning}</Text> : null}
 
             {savedAddress && savedLocation ? (
               <TouchableOpacity onPress={handleResetToSavedAddress}>
                 <Text style={styles.linkText}>Use saved address</Text>
               </TouchableOpacity>
             ) : null}
+
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+              nestedScrollEnabled
+            >
 
             <View style={styles.section}>
               <Text style={styles.sectionLabel}>When</Text>
@@ -317,7 +327,8 @@ export function RequestWashScreen({ navigation }: Props) {
                 <Text style={styles.submitButtonText}>Request wash</Text>
               )}
             </TouchableOpacity>
-          </ScrollView>
+            </ScrollView>
+          </>
         )}
       </KeyboardAvoidingView>
     </ScreenLayout>
@@ -366,6 +377,11 @@ const styles = StyleSheet.create({
     ...typography.bodySmall,
     color: colors.primary,
     fontWeight: '600',
+    marginBottom: spacing.md,
+  },
+  warningText: {
+    ...typography.bodySmall,
+    color: colors.warning,
     marginBottom: spacing.md,
   },
   timeRow: {

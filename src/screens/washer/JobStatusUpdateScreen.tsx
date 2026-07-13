@@ -11,10 +11,11 @@ import * as ImagePicker from 'expo-image-picker';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ScreenLayout } from '../../components/ScreenLayout';
 import { useAuth } from '../../hooks/useAuth';
-import { uploadCompletionPhoto } from '../../services/storage';
+import { uploadBeforeWashPhoto, uploadCompletionPhoto } from '../../services/storage';
 import {
   completeWashJob,
   fetchWasherJobDetail,
+  startWashJob,
   updateWashJobStatus,
 } from '../../services/washerJobs';
 import { colors, spacing, typography } from '../../theme';
@@ -29,6 +30,8 @@ type StatusAction = {
   nextStatus: WashJobStatus;
   label: string;
 };
+
+type JobPhotoKind = 'before' | 'completion';
 
 function getNextAction(status: WashJobStatus): StatusAction | null {
   switch (status) {
@@ -89,6 +92,29 @@ export function JobStatusUpdateScreen({ route, navigation }: Props) {
     navigation.replace('RateUser', { jobId });
   }, [jobId, navigation]);
 
+  const startWash = async (photoUri?: string | null) => {
+    if (!authUser) {
+      return;
+    }
+
+    setUpdating(true);
+    setError(null);
+
+    try {
+      let beforeWashPhotoUrl: string | null = null;
+      if (photoUri) {
+        beforeWashPhotoUrl = await uploadBeforeWashPhoto(jobId, photoUri);
+      }
+
+      const updated = await startWashJob(jobId, authUser.id, beforeWashPhotoUrl);
+      setStatus(updated.status);
+    } catch (startError) {
+      setError(getErrorMessage(startError));
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   const completeJob = async (photoUri?: string | null) => {
     if (!authUser) {
       return;
@@ -113,14 +139,14 @@ export function JobStatusUpdateScreen({ route, navigation }: Props) {
     }
   };
 
-  const pickCompletionPhoto = async (source: 'library' | 'camera') => {
+  const pickJobPhoto = async (kind: JobPhotoKind, source: 'library' | 'camera') => {
     setError(null);
 
     try {
       if (source === 'camera') {
         const permission = await ImagePicker.requestCameraPermissionsAsync();
         if (!permission.granted) {
-          setError('Camera permission is required to take a completion photo.');
+          setError('Camera permission is required to take a photo.');
           return;
         }
         const result = await ImagePicker.launchCameraAsync({
@@ -128,14 +154,18 @@ export function JobStatusUpdateScreen({ route, navigation }: Props) {
           quality: 0.8,
         });
         if (!result.canceled && result.assets[0]) {
-          await completeJob(result.assets[0].uri);
+          if (kind === 'before') {
+            await startWash(result.assets[0].uri);
+          } else {
+            await completeJob(result.assets[0].uri);
+          }
         }
         return;
       }
 
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
-        setError('Photo library permission is required to pick a completion photo.');
+        setError('Photo library permission is required to pick a photo.');
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -143,19 +173,32 @@ export function JobStatusUpdateScreen({ route, navigation }: Props) {
         quality: 0.8,
       });
       if (!result.canceled && result.assets[0]) {
-        await completeJob(result.assets[0].uri);
+        if (kind === 'before') {
+          await startWash(result.assets[0].uri);
+        } else {
+          await completeJob(result.assets[0].uri);
+        }
       }
     } catch (pickerError) {
       const message = formatPickerError(pickerError);
-      console.error('[JobStatusUpdateScreen] completion photo failed:', message, pickerError);
+      console.error('[JobStatusUpdateScreen] photo picker failed:', message, pickerError);
       setError(`Image picker error:\n${message}`);
     }
   };
 
+  const showBeforePhotoOptions = () => {
+    Alert.alert('Before wash photo (optional)', 'Take a photo of the car before you start', [
+      { text: 'Take photo', onPress: () => void pickJobPhoto('before', 'camera') },
+      { text: 'Choose from gallery', onPress: () => void pickJobPhoto('before', 'library') },
+      { text: 'Skip & start wash', onPress: () => void startWash(null) },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
   const showCompletionPhotoOptions = () => {
-    Alert.alert('Add a completion photo (optional)', 'Show the owner proof of work', [
-      { text: 'Take photo', onPress: () => void pickCompletionPhoto('camera') },
-      { text: 'Choose from gallery', onPress: () => void pickCompletionPhoto('library') },
+    Alert.alert('After wash photo (optional)', 'Show the owner proof of work', [
+      { text: 'Take photo', onPress: () => void pickJobPhoto('completion', 'camera') },
+      { text: 'Choose from gallery', onPress: () => void pickJobPhoto('completion', 'library') },
       { text: 'Skip & complete', onPress: () => void completeJob(null) },
       { text: 'Cancel', style: 'cancel' },
     ]);
@@ -163,6 +206,11 @@ export function JobStatusUpdateScreen({ route, navigation }: Props) {
 
   const handleAdvance = async () => {
     if (!authUser || !nextAction || !status) {
+      return;
+    }
+
+    if (nextAction.nextStatus === 'in_progress') {
+      showBeforePhotoOptions();
       return;
     }
 
